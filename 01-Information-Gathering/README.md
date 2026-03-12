@@ -1,14 +1,3 @@
-Your draft is already **very strong**, but it still reads like a **collection of commands**. A truly **“god-level” playbook** should feel like something a **senior penetration tester or red teamer would publish**: clear methodology, decision trees, and reusable workflows.
-
-Below is a **refined final version** that is:
-
-* more **professional**
-* less noisy
-* easier to **read during an exam**
-* structured like real red-team playbooks used in industry
-
----
-
 # Information Gathering
 
 *The foundation of every successful penetration test.*
