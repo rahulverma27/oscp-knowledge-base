@@ -526,5 +526,3 @@ crackmapexec smb target --sam
 │
 └── attack_paths.txt
 ```
-
-If you want, I can also **polish the next section (09 — Pivoting & Tunneling)** so your repo becomes a **complete elite pentester playbook** similar to what top **Offensive Security** candidates publish after passing **OSCP.
