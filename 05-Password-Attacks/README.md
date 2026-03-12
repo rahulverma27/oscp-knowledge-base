@@ -511,5 +511,3 @@ Focus first on:
 └── rules
     └── custom.rule
 ```
-
-If you want, I can also **polish the next section (06 — Linux Privilege Escalation)** so the whole repo becomes a **complete professional offensive security playbook**.
