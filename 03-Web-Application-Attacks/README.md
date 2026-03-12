@@ -50,7 +50,6 @@ Web applications represent the largest attack surface in modern networks. Unlike
 │ (Shell, data exfiltration, pivoting) │
 └──────────────────────────────────────────────────────────┘
 
-text
 
 ## Command Arsenal
 
@@ -261,3 +260,4 @@ text
 │       └── wpscan_output.txt
 ├── findings.csv
 └── attack_paths.txt
+
